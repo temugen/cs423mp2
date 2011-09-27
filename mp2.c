@@ -174,8 +174,8 @@ int __init my_module_init(void)
 //NOTE THE __EXIT ANNOTATION AND THE FUNCTION PROTOTYPE
 void __exit my_module_exit(void)
 {
-   remove_proc_entry("status", proc_dir);
-   remove_proc_entry("mp2", NULL);
+   remove_proc_entry(PROC_FILENAME, proc_dir);
+   remove_proc_entry(PROC_DIRNAME, NULL);
    del_timer_sync(&up_timer);
 
    stop_thread=1;
