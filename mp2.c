@@ -28,6 +28,7 @@ void _destroy_task_list(void)
     {
         p = list_entry(pos, struct task, task_node);
         list_del(pos);
+        del_timer_sync(&p->wakeup_timer);
         kfree(p);
     }
 }
@@ -36,20 +37,6 @@ void _insert_task(struct task* t)
 {
     BUG_ON(t==NULL);
     list_add_tail(&t->task_node, &task_list);
-}
-
-void update_entries(void)
-{
-    struct list_head *pos;
-    struct task *p;
-    unsigned long cpuval;
-
-    list_for_each(pos, &task_list)
-    {
-        p = list_entry(pos, struct task, task_node);
-        if (get_cpu_use(p->pid, &cpuval)==0) p->cpu_use=cpuval;
-        else p->cpu_use=0;
-    }
 }
 
 struct task* _lookup_task(unsigned long pid)
@@ -76,6 +63,7 @@ void deregister_task(unsigned long pid)
     mutex_lock(&mutex);
     list_del(&t->task_node);
     mutex_unlock(&mutex);
+    del_timer_sync(&t->wakeup_timer);
     kfree(t);
 }
 
@@ -99,6 +87,15 @@ int proc_registration_read(char *page, char **start, off_t off, int count, int* 
     return i;
 }
 
+//THIS IS THE TIMER HANDLER (INTERRUPT CONTEXT)
+//THIS MUST BE VERY FAST SO WE USE A TWO HALVES APPROACH
+//WE DONT UPDATE HERE BUT SIGNAL THE THREAD THAT AN UPDATE MUST OCCUR
+void up_handler(unsigned long ptr)
+{
+    //SCHEDULE THE THREAD TO RUN (WAKE UP THE THREAD)
+    wake_up_process(update_kthread);
+}
+
 int register_task(unsigned long pid, unsigned long period, unsigned long computation)
 {
     struct task* newtask;
@@ -107,7 +104,9 @@ int register_task(unsigned long pid, unsigned long period, unsigned long computa
 
     newtask=kmalloc(sizeof(struct task),GFP_KERNEL);
     newtask->pid=pid;
-    newtask->cpu_use=0;
+    timer_init(&newtask->wakeup_timer, up_handler);
+    set_timer(&newtask->wakeup_timer, period);
+    newtask->linux_task = find_task_by_pid(pid);
     newtask->period = period;
     newtask->computation = computation;
     mutex_lock(&mutex);
@@ -123,7 +122,7 @@ int proc_registration_write(struct file *file, const char *buffer, unsigned long
     char reg_type;
     unsigned long pid, period, computation;
 
-    proc_buffer=kmalloc(count, GFP_KERNEL); 
+    proc_buffer=kmalloc(count, GFP_KERNEL);
     copy_from_user(proc_buffer, buffer, count);
 
     reg_type = proc_buffer[0];
@@ -131,7 +130,7 @@ int proc_registration_write(struct file *file, const char *buffer, unsigned long
     switch(reg_type)
     {
         case 'R':
-            sscanf(proc_buffer, "%c, %lu, %lu, %lu", &reg_type, &pid, &period, &computation); 
+            sscanf(proc_buffer, "%c, %lu, %lu, %lu", &reg_type, &pid, &period, &computation);
             register_task(pid, period, computation);
             printk(KERN_ALERT "Register Task:%lu %lu %lu\n", pid, period, computation);
             break;
@@ -153,15 +152,6 @@ int proc_registration_write(struct file *file, const char *buffer, unsigned long
     return count;
 }
 
-//THIS IS THE TIMER HANDLER (INTERRUPT CONTEXT)
-//THIS MUST BE VERY FAST SO WE USE A TWO HALVES APPROACH
-//WE DONT UPDATE HERE BUT SIGNAL THE THREAD THAT AN UPDATE MUST OCCUR
-void up_handler(unsigned long ptr)
-{
-    //SCHEDULE THE THREAD TO RUN (WAKE UP THE THREAD)
-    wake_up_process(update_kthread);
-}
-
 //THIS IS THE THREAD FUNCTION (KERNEL CONTEXT)
 //WE DO ALL THE UPDATE WORK HERE
 int scheduled_update(void *data)
@@ -171,10 +161,9 @@ int scheduled_update(void *data)
         mutex_lock(&mutex);
         if (stop_thread==1) break;
         printk(KERN_ALERT "STATS UPDATED\n");
-        update_entries();
         mutex_unlock(&mutex);
 
-        set_timer(&up_timer,UPDATE_TIME);
+        //set_timer(&up_timer,UPDATE_TIME);
         set_current_state(TASK_INTERRUPTIBLE);
         schedule();
         set_current_state(TASK_RUNNING);
@@ -188,15 +177,13 @@ int scheduled_update(void *data)
 //NOTE THE __INIT ANNOTATION AND THE FUNCTION PROTOTYPE
 int __init my_module_init(void)
 {
-    timer_init(&up_timer, up_handler);
-
     proc_dir=proc_mkdir(PROC_DIRNAME,NULL);
     register_task_file=create_proc_entry(PROC_FILENAME, 0666, proc_dir);
     register_task_file->read_proc= proc_registration_read;
     register_task_file->write_proc=proc_registration_write;
 
     update_kthread=kthread_create(scheduled_update, NULL, UPDATE_THREAD_NAME);
-    set_timer(&up_timer,UPDATE_TIME);
+
     //THE EQUIVALENT TO PRINTF IN KERNEL SPACE
     printk(KERN_ALERT "MODULE LOADED\n");
     return 0;   
@@ -208,7 +195,6 @@ void __exit my_module_exit(void)
 {
     remove_proc_entry(PROC_FILENAME, proc_dir);
     remove_proc_entry(PROC_DIRNAME, NULL);
-    del_timer_sync(&up_timer);
 
     stop_thread=1;
     wake_up_process(update_kthread);

@@ -11,7 +11,6 @@
 #include <asm/uaccess.h>
 
 #include "mp2_given.h"
-#include "mp1_given.h"
 
 #define JIFF_TO_MS(t) ((t*1000)/ HZ)
 #define MS_TO_JIFF(j) ((j * HZ) / 1000)
@@ -26,16 +25,16 @@ struct task
 {
   unsigned int pid;
   struct list_head task_node;
+  struct task_struct *linux_task;
+  struct timer_list wakeup_timer;
   unsigned long period;
   unsigned long computation;
-  unsigned long cpu_use;
 };
 
 //PROC FILESYSTEM ENTRIES
 static struct proc_dir_entry *proc_dir;
 static struct proc_dir_entry *register_task_file;
 
-struct timer_list up_timer;
 struct task_struct* update_kthread;
 int stop_thread=0;
 
