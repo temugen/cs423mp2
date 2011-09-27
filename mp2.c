@@ -81,7 +81,7 @@ int proc_registration_read(char *page, char **start, off_t off, int count, int* 
   list_for_each(pos, &task_list)
     {
       p = list_entry(pos, struct task, task_node);
-      i+=sprintf(page+off+i, "%u: %lu\n", p->pid, p->cpu_use);
+      i+=sprintf(page+off+i, "%u: %lu %lu\n", p->pid, p->period, p->computation);
     }
  
   mutex_unlock(&mutex);
@@ -89,7 +89,7 @@ int proc_registration_read(char *page, char **start, off_t off, int count, int* 
   return i;
 }
 
-int register_task(long pid)
+int register_task(unsigned long pid, unsigned long period, unsigned long computation)
 {
    struct task* newtask;
 
@@ -98,6 +98,8 @@ int register_task(long pid)
    newtask=kmalloc(sizeof(struct task),GFP_KERNEL);
    newtask->pid=pid;
    newtask->cpu_use=0;
+   newtask->period = period;
+   newtask->computation = computation;
    mutex_lock(&mutex);
    _insert_task(newtask); 
    mutex_unlock(&mutex);
@@ -108,14 +110,33 @@ int register_task(long pid)
 int proc_registration_write(struct file *file, const char *buffer, unsigned long count, void *data)
 {
   char *proc_buffer;
-  unsigned int  pid;
+  char reg_type;
+  unsigned long pid, period, computation;
 
   proc_buffer=kmalloc(count, GFP_KERNEL); 
   copy_from_user(proc_buffer, buffer, count);
 
-  sscanf(proc_buffer, "%u", &pid); 
-  register_task(pid);
-  printk(KERN_ALERT "Register Task:%u\n", pid);
+  reg_type = proc_buffer[0];
+
+  switch(reg_type)
+  {
+      case 'R':
+        sscanf(proc_buffer, "%c, %lu, %lu, %lu", &reg_type, &pid, &period, &computation); 
+        register_task(pid, period, computation);
+        printk(KERN_ALERT "Register Task:%lu %lu %lu\n", pid, period, computation);
+        break;
+      case 'Y':
+        sscanf(proc_buffer, "%c, %lu", &reg_type, &pid);
+        printk(KERN_ALERT "Yield Task:%lu\n", pid);
+        break;
+      case 'D':
+        sscanf(proc_buffer, "%c, %lu", &reg_type, &pid);
+        printk(KERN_ALERT "Delete Task:%lu\n", pid);
+        break;
+      default:
+        printk(KERN_ALERT "Malformed registration string\n");
+        break;
+  }
 
   kfree(proc_buffer);
   return count;

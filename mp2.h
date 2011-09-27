@@ -24,9 +24,11 @@
 
 struct task
 {
-  int pid;
+  unsigned int pid;
   struct list_head task_node;
-  long unsigned cpu_use;
+  unsigned long period;
+  unsigned long computation;
+  unsigned long cpu_use;
 };
 
 //PROC FILESYSTEM ENTRIES
