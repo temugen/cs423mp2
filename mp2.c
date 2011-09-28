@@ -121,7 +121,7 @@ int can_schedule(unsigned long period, unsigned long computation)
 {
     struct list_head *pos;
     struct task *p;
-    unsigned long sum = 0;
+    unsigned long sum = (computation * 100000) / period;
 
     //Check scheduling up to two decimal places
     list_for_each(pos, &task_list)
