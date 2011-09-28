@@ -21,6 +21,10 @@
 #define PROC_FILENAME "status"
 #define UPDATE_THREAD_NAME "kmp2"
 
+#define READY 1
+#define SLEEPING 2
+#define RUNNING 3
+
 struct task
 {
   unsigned int pid;
@@ -29,6 +33,7 @@ struct task
   struct timer_list wakeup_timer;
   unsigned long period;
   unsigned long computation;
+  int state;
 };
 
 //PROC FILESYSTEM ENTRIES
@@ -37,6 +42,10 @@ static struct proc_dir_entry *register_task_file;
 
 struct task_struct* update_kthread;
 int stop_thread=0;
+
+struct task *currtask;
+
+struct task *calling_task;
 
 LIST_HEAD(task_list);
 static DEFINE_MUTEX(mutex);
