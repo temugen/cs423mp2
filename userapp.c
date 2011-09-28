@@ -29,7 +29,7 @@ int main(int argc, char* argv[])
 
   struct timeval tv;
 
-  for (k=0;k<10000; k++)
+  //for (k=0;k<10000; k++)
     for(j=0; j<30; j++)
     {
         gettimeofday(&tv, NULL);
@@ -38,4 +38,6 @@ int main(int argc, char* argv[])
         sprintf(cmd, "echo 'Y, %u'>//proc/mp2/status", mypid);
         system(cmd);
     }
+    sprintf(cmd, "echo 'D, %u'>//proc/mp2/status", mypid);
+    system(cmd);
 }
