@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
   int j,k;
 
   mypid= syscall(__NR_gettid);
-  sprintf(cmd, "echo 'R, %u, 2000, 10'>//proc/mp2/status", mypid);
+  sprintf(cmd, "echo 'R, %u, 2000, 20'>//proc/mp2/status", mypid);
   system(cmd);
 
   struct timeval tv;

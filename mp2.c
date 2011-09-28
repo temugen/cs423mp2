@@ -89,6 +89,8 @@ int proc_registration_read(char *page, char **start, off_t off, int count, int* 
 void up_handler(unsigned long ptr)
 {
     struct task *t = (struct task *)ptr;
+    BUG_ON(t == NULL);
+    printk("%p\n", t);
     set_timer(&t->wakeup_timer, t->period);
     t->state = READY;
 
@@ -103,9 +105,10 @@ int register_task(unsigned long pid, unsigned long period, unsigned long computa
     if (_lookup_task(pid) != NULL) return -1;
 
     newtask = kmalloc(sizeof(struct task),GFP_KERNEL);
+    printk("newtask: %p\n", newtask);
     newtask->pid = pid;
     timer_init(&newtask->wakeup_timer, up_handler);
-    newtask->wakeup_timer.data = (unsigned long)&newtask;
+    newtask->wakeup_timer.data = (unsigned long)newtask;
     newtask->linux_task = find_task_by_pid(pid);
     newtask->period = period;
     newtask->computation = computation;
@@ -168,15 +171,16 @@ int proc_registration_write(struct file *file, const char *buffer, unsigned long
 
             if(t->state == SLEEPING) //THIS IS OUR FIRST YIELD
             {
+                printk("set timer\n");
                 set_timer(&t->wakeup_timer, t->period);
                 t->state = READY;
             }
             else
             {
                 t->state = SLEEPING;
-                set_task_state(t->linux_task, TASK_UNINTERRUPTIBLE);
             }
 
+            set_task_state(t->linux_task, TASK_UNINTERRUPTIBLE);
             wake_up_process(update_kthread);
             printk(KERN_ALERT "Yield Task:%lu\n", pid);
             break;
@@ -226,6 +230,11 @@ int context_switch(void *data)
         printk(KERN_ALERT "CONTEXT SWITCH\n");
         next_task = _get_next_task();
         mutex_unlock(&mutex);
+
+        if(next_task)
+            printk("next: %u, state: %u\n", next_task->pid, next_task->state);
+        if(currtask)
+            printk("curr: %u, state: %u\n", currtask->pid, currtask->state);
 
         if(next_task == currtask)
             goto same_task;
