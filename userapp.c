@@ -30,7 +30,7 @@ int main(int argc, char* argv[])
   struct timeval tv;
 
   //for (k=0;k<10000; k++)
-    for(j=0; j<30; j++)
+    for(j=0; j<10; j++)
     {
         gettimeofday(&tv, NULL);
         printf("%llu %llu\n", tv.tv_sec, tv.tv_usec);
