@@ -27,6 +27,9 @@ int main(int argc, char* argv[])
   sprintf(cmd, "echo 'R, %u, 2000, 20'>//proc/mp2/status", mypid);
   system(cmd);
 
+  sprintf(cmd, "echo 'Y, %u'>//proc/mp2/status", mypid);
+  system(cmd);
+
   struct timeval tv;
 
   //for (k=0;k<10000; k++)

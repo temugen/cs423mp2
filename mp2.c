@@ -233,6 +233,7 @@ int context_switch(void *data)
 
         if(next_task != NULL) //SWAP IN NEW TASK
         {
+            printk("swapping in %u\n", next_task->pid);
             next_task->state = RUNNING;
             wake_up_process(next_task->linux_task);
             sparam.sched_priority = MAX_USER_RT_PRIO - 1;
@@ -241,6 +242,7 @@ int context_switch(void *data)
 
         if(currtask != NULL) //SWAP OUT OLD TASK
         {
+            printk("swapping out %u\n", currtask->pid);
             if(currtask->state == SLEEPING) // TASK HAS YIELDED
             {
                 //WILL SWITCH TO NEW TASK IF ONE EXISTS, OTHERWISE NULL
