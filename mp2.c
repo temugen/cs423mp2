@@ -74,13 +74,11 @@ int proc_registration_read(char *page, char **start, off_t off, int count, int* 
 
     i = 0;
 
-    //mutex_lock(&mutex);
     list_for_each(pos, &task_list)
     {
         p = list_entry(pos, struct task, task_node);
         i += sprintf(page+off+i, "%u: %lu %lu\n", p->pid, p->period, p->computation);
     }
-    //mutex_unlock(&mutex);
     *eof = 1;
     return i;
 }
@@ -121,7 +119,21 @@ int register_task(unsigned long pid, unsigned long period, unsigned long computa
 
 int can_schedule(unsigned long period, unsigned long computation)
 {
-    return 1;
+    struct list_head *pos;
+    struct task *p;
+    unsigned long sum = 0;
+
+    //Check scheduling up to two decimal places
+    list_for_each(pos, &task_list)
+    {
+        p = list_entry(pos, struct task, task_node);
+        sum += (p->computation * 100000) / p->period;
+    }
+
+    if(sum <= 69300)
+        return 1;
+    else
+        return 0;
 }
 
 int proc_registration_write(struct file *file, const char *buffer, unsigned long count, void *data)
@@ -140,11 +152,13 @@ int proc_registration_write(struct file *file, const char *buffer, unsigned long
     {
         case 'R':
             sscanf(proc_buffer, "%c, %lu, %lu, %lu", &reg_type, &pid, &period, &computation);
+
             if(!can_schedule(period, computation))
             {
                 printk(KERN_ALERT "Cannot register task:%lu %lu %lu\n", pid, period, computation);
                 break;
             }
+
             register_task(pid, period, computation);
             printk(KERN_ALERT "Register Task:%lu %lu %lu\n", pid, period, computation);
             break;
@@ -159,7 +173,6 @@ int proc_registration_write(struct file *file, const char *buffer, unsigned long
             }
             else
             {
-                currtask = NULL;
                 t->state = SLEEPING;
                 set_task_state(t->linux_task, TASK_UNINTERRUPTIBLE);
             }
@@ -191,7 +204,8 @@ struct task *_get_next_task(void)
     list_for_each(pos, &task_list)
     {
         p = list_entry(pos, struct task, task_node);
-        if(p->state == READY && (next_task == NULL || p->period < next_task->period))
+        //IF RUNNING TASK HAS HIGHEST PRIORITY, CHOOSE IT
+        if((p->state == READY || p->state == RUNNING) && (next_task == NULL || p->period < next_task->period))
             next_task = p;
     }
 
@@ -216,7 +230,7 @@ int context_switch(void *data)
         if(next_task == currtask)
             goto same_task;
 
-        if(next_task != NULL)
+        if(next_task != NULL) //SWAP IN NEW TASK
         {
             next_task->state = RUNNING;
             wake_up_process(next_task->linux_task);
@@ -224,8 +238,16 @@ int context_switch(void *data)
             sched_setscheduler(next_task->linux_task, SCHED_FIFO, &sparam);
         }
 
-        if(currtask != NULL)
+        if(currtask != NULL) //SWAP OUT OLD TASK
         {
+            if(currtask->state == SLEEPING) // TASK HAS YIELDED
+            {
+                //WILL SWITCH TO NEW TASK IF ONE EXISTS, OTHERWISE NULL
+                currtask = next_task;
+                goto same_task;
+            }
+
+            //TASK IS STILL RUNNING
             currtask->state = READY;
             sparam.sched_priority = 0;
             sched_setscheduler(currtask->linux_task, SCHED_NORMAL, &sparam);
@@ -234,9 +256,8 @@ int context_switch(void *data)
         if(next_task != NULL)
             currtask = next_task;
 
-        same_task:
-        //mutex_unlock(&mutex);
-
+same_task:
+        //SLEEP OUR THREAD
         set_current_state(TASK_INTERRUPTIBLE);
         schedule();
         set_current_state(TASK_RUNNING);
@@ -262,7 +283,7 @@ int __init my_module_init(void)
 
     //THE EQUIVALENT TO PRINTF IN KERNEL SPACE
     printk(KERN_ALERT "MODULE LOADED\n");
-    return 0;   
+    return 0;
 }
 
 //THIS FUNCTION GETS EXECUTED WHEN THE MODULE GETS UNLOADED
