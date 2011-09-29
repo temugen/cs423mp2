@@ -166,6 +166,7 @@ int proc_registration_write(struct file *file, const char *buffer, unsigned long
         case 'Y':
             mutex_lock(&mutex);
             currtask = NULL;
+            mutex_unlock(&mutex);
 
             sscanf(proc_buffer, "%c, %lu", &reg_type, &pid);
             t = _lookup_task(pid);
@@ -181,7 +182,6 @@ int proc_registration_write(struct file *file, const char *buffer, unsigned long
             }
 
             set_task_state(t->linux_task, TASK_UNINTERRUPTIBLE);
-            mutex_unlock(&mutex);
             wake_up_process(update_kthread);
             printk(KERN_ALERT "Yield Task:%lu\n", pid);
             break;
