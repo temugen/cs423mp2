@@ -22,12 +22,16 @@ void _destroy_task_list(void)
 {
     struct list_head *pos, *tmp;
     struct task *p;
+    struct sched_param sparam_nice;
+
+    sparam_nice.sched_priority = 0;
 
     list_for_each_safe(pos, tmp, &task_list)
     {
         p = list_entry(pos, struct task, task_node);
         list_del(pos);
         del_timer_sync(&p->wakeup_timer);
+        sched_setscheduler(p->linux_task, SCHED_NORMAL, &sparam_nice);
         kfree(p);
     }
 }
