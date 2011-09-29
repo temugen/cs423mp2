@@ -229,9 +229,12 @@ struct task *_get_next_task(void)
 //WE DO ALL THE UPDATE WORK HERE
 int context_switch(void *data)
 {
-    struct sched_param sparam;
+    struct sched_param sparam_nice, sparam_rt;
     struct task *next_task;
     struct task *currtask = NULL;
+
+    sparam_nice.sched_priority = 0;
+    sparam_rt.sched_priority = MAX_USER_RT_PRIO - 1;
 
     while(1)
     {
@@ -248,8 +251,7 @@ int context_switch(void *data)
             switch(currtask->state)
             {
                 case DEREGISTERING:
-                    sparam.sched_priority = 0;
-                    sched_setscheduler(currtask->linux_task, SCHED_NORMAL, &sparam);
+                    sched_setscheduler(currtask->linux_task, SCHED_NORMAL, &sparam_nice);
                     kfree(currtask);
                     currtask = NULL;
                     break;
@@ -258,8 +260,7 @@ int context_switch(void *data)
                     break;
                 default:
                     currtask->state = READY;
-                    sparam.sched_priority = 0;
-                    sched_setscheduler(currtask->linux_task, SCHED_NORMAL, &sparam);
+                    sched_setscheduler(currtask->linux_task, SCHED_NORMAL, &sparam_nice);
                     break;
             }
         }
@@ -268,13 +269,12 @@ int context_switch(void *data)
         {
             next_task->state = RUNNING;
             wake_up_process(next_task->linux_task);
-            sparam.sched_priority = MAX_USER_RT_PRIO - 1;
-            sched_setscheduler(next_task->linux_task, SCHED_FIFO, &sparam);
+            sched_setscheduler(next_task->linux_task, SCHED_FIFO, &sparam_rt);
             currtask = next_task;
         }
 
 sleep:
-        //SLEEP OUR THREAD
+        //SLEEP OUR THREAD AND SCHEDULE CHANGES
         set_current_state(TASK_INTERRUPTIBLE);
         schedule();
         set_current_state(TASK_RUNNING);
