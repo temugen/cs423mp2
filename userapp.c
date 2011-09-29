@@ -52,20 +52,19 @@ int main(int argc, char* argv[])
     sprintf(cmd, "echo 'Y, %lu'>" PROC_FILENAME, mypid);
     gettimeofday(&last_tv, NULL);
     system(cmd);
-    gettimeofday(&current_tv, NULL);
 
     for(k = 0; k < 2; k++)
         for(j = 0; j < 10; j++)
         {
+            gettimeofday(&current_tv, NULL);
             printf("% 4ld sec % 5ld us | fact(%u): %llu\n",
                     current_tv.tv_sec - last_tv.tv_sec,
                     current_tv.tv_usec - last_tv.tv_usec,
                     j, factorial(j));
+            last_tv = current_tv;
 
             sprintf(cmd, "echo 'Y, %lu'>" PROC_FILENAME, mypid);
-            gettimeofday(&last_tv, NULL);
             system(cmd);
-            gettimeofday(&current_tv, NULL);
         }
 
     sprintf(cmd, "echo 'D, %lu'>" PROC_FILENAME, mypid);
