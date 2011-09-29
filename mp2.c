@@ -273,7 +273,6 @@ same_task:
 int __init my_module_init(void)
 {
     currtask = NULL;
-    calling_task = NULL;
 
     proc_dir = proc_mkdir(PROC_DIRNAME, NULL);
     register_task_file = create_proc_entry(PROC_FILENAME, 0666, proc_dir);

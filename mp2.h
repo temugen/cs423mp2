@@ -24,6 +24,8 @@
 #define READY 1
 #define SLEEPING 2
 #define RUNNING 3
+#define REGISTERING 4
+#define DEREGISTERING 5
 
 struct task
 {
@@ -44,8 +46,6 @@ struct task_struct* update_kthread;
 int stop_thread=0;
 
 struct task *currtask;
-
-struct task *calling_task;
 
 LIST_HEAD(task_list);
 static DEFINE_MUTEX(mutex);
