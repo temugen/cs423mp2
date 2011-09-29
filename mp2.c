@@ -164,6 +164,9 @@ int proc_registration_write(struct file *file, const char *buffer, unsigned long
             printk(KERN_ALERT "Register Task:%lu %lu %lu\n", pid, period, computation);
             break;
         case 'Y':
+            mutex_lock(&mutex);
+            currtask = NULL;
+
             sscanf(proc_buffer, "%c, %lu", &reg_type, &pid);
             t = _lookup_task(pid);
 
@@ -178,13 +181,18 @@ int proc_registration_write(struct file *file, const char *buffer, unsigned long
             }
 
             set_task_state(t->linux_task, TASK_UNINTERRUPTIBLE);
+            mutex_unlock(&mutex);
             wake_up_process(update_kthread);
             printk(KERN_ALERT "Yield Task:%lu\n", pid);
             break;
         case 'D':
+            mutex_lock(&mutex);
+            currtask = NULL;
+
             sscanf(proc_buffer, "%c, %lu", &reg_type, &pid);
-            t = _lookup_task(pid);
+            mutex_unlock(&mutex);
             deregister_task(pid);
+            wake_up_process(update_kthread);
             printk(KERN_ALERT "Deregister Task:%lu\n", pid);
             break;
         default:
@@ -226,10 +234,17 @@ int context_switch(void *data)
         if (stop_thread==1) break;
         printk(KERN_ALERT "CONTEXT SWITCH\n");
         next_task = _get_next_task();
-        mutex_unlock(&mutex);
 
         if(next_task == currtask)
             goto same_task;
+
+        if(currtask != NULL) //SWAP OUT OLD TASK
+        {
+            printk("swapping out %u\n", currtask->pid);
+            currtask->state = READY;
+            sparam.sched_priority = 0;
+            sched_setscheduler(currtask->linux_task, SCHED_NORMAL, &sparam);
+        }
 
         if(next_task != NULL) //SWAP IN NEW TASK
         {
@@ -238,28 +253,11 @@ int context_switch(void *data)
             wake_up_process(next_task->linux_task);
             sparam.sched_priority = MAX_USER_RT_PRIO - 1;
             sched_setscheduler(next_task->linux_task, SCHED_FIFO, &sparam);
-        }
-
-        if(currtask != NULL) //SWAP OUT OLD TASK
-        {
-            printk("swapping out %u\n", currtask->pid);
-            if(currtask->state == SLEEPING) // TASK HAS YIELDED
-            {
-                //WILL SWITCH TO NEW TASK IF ONE EXISTS, OTHERWISE NULL
-                currtask = next_task;
-                goto same_task;
-            }
-
-            //TASK IS STILL RUNNING
-            currtask->state = READY;
-            sparam.sched_priority = 0;
-            sched_setscheduler(currtask->linux_task, SCHED_NORMAL, &sparam);
-        }
-
-        if(next_task != NULL)
             currtask = next_task;
+        }
 
 same_task:
+        mutex_unlock(&mutex);
         //SLEEP OUR THREAD
         set_current_state(TASK_INTERRUPTIBLE);
         schedule();
