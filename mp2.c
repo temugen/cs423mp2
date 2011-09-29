@@ -248,6 +248,8 @@ int context_switch(void *data)
             switch(currtask->state)
             {
                 case DEREGISTERING:
+                    sparam.sched_priority = 0;
+                    sched_setscheduler(currtask->linux_task, SCHED_NORMAL, &sparam);
                     kfree(currtask);
                     currtask = NULL;
                     break;
