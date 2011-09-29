@@ -56,7 +56,7 @@ int main(int argc, char* argv[])
 
     for(j=0; j<10; j++)
     {
-        printf("%llu sec %llu us | fact(%u): %llu\n",
+        printf("% 3lu sec % 4lu us | fact(%u): %llu\n",
                 current_tv.tv_sec - last_tv.tv_sec,
                 current_tv.tv_usec - last_tv.tv_usec,
                 j, factorial(j));
