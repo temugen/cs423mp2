@@ -188,9 +188,9 @@ int proc_registration_write(struct file *file, const char *buffer, unsigned long
         case 'D':
             mutex_lock(&mutex);
             currtask = NULL;
+            mutex_unlock(&mutex);
 
             sscanf(proc_buffer, "%c, %lu", &reg_type, &pid);
-            mutex_unlock(&mutex);
             deregister_task(pid);
             wake_up_process(update_kthread);
             printk(KERN_ALERT "Deregister Task:%lu\n", pid);
