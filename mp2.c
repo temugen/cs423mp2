@@ -59,11 +59,11 @@ int deregister_task(unsigned long pid)
     if((t = _lookup_task(pid)) == NULL)
         return -1;
 
-    t->state = DEREGISTERING;
     mutex_lock(&mutex);
     list_del(&t->task_node);
     mutex_unlock(&mutex);
     del_timer_sync(&t->wakeup_timer);
+    t->state = DEREGISTERING;
 
     wake_up_process(update_kthread);
 
