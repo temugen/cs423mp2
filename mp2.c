@@ -18,6 +18,7 @@ inline void set_timer(struct timer_list* tlist, long release_time)
     mod_timer(tlist, tlist->expires);
 }
 
+//REMOVE ALL TASKS FROM THE LIST, RESET THEIR SCHEDULING, AND FREE THEM
 void _destroy_task_list(void)
 {
     struct list_head *pos, *tmp;
@@ -57,6 +58,7 @@ struct task* _lookup_task(unsigned long pid)
     return NULL;
 }
 
+//REMOVE TASK FROM LIST, MARK FOR DEREGISTRATION, CONTEXT SWITCH
 int deregister_task(unsigned long pid)
 {
     struct task *t;
@@ -93,7 +95,6 @@ int proc_registration_read(char *page, char **start, off_t off, int count, int* 
 
 //THIS IS THE TIMER HANDLER (INTERRUPT CONTEXT)
 //THIS MUST BE VERY FAST SO WE USE A TWO HALVES APPROACH
-//WE DONT UPDATE HERE BUT SIGNAL THE THREAD THAT AN UPDATE MUST OCCUR
 void up_handler(unsigned long ptr)
 {
     struct task *t = (struct task *)ptr;
@@ -105,6 +106,7 @@ void up_handler(unsigned long ptr)
     wake_up_process(dispatch_kthread);
 }
 
+//ALLOCATE AND POPULATE TASK, ADD TO LIST
 int register_task(unsigned long pid, unsigned long period, unsigned long computation)
 {
     struct task* newtask;
@@ -126,6 +128,7 @@ int register_task(unsigned long pid, unsigned long period, unsigned long computa
     return 0;
 }
 
+//SET THE INITIAL TIMER IF TASK IS REGISTERING, SLEEP TASK, CONTEXT SWITCH
 int yield_task(unsigned long pid)
 {
     struct task *t;
@@ -149,13 +152,14 @@ int yield_task(unsigned long pid)
     return 0;
 }
 
+//CHECK UTILIZATION BOUNDS OF ALL PROCESSES
 int can_schedule(unsigned long period, unsigned long computation)
 {
     struct list_head *pos;
     struct task *p;
+    //UP TO TWO EXTRA DECIMAL PLACES
     unsigned long sum = (computation * 100000) / period;
 
-    //Check scheduling up to two decimal places
     list_for_each(pos, &task_list)
     {
         p = list_entry(pos, struct task, task_node);
@@ -212,6 +216,7 @@ copy_fail:
     return count;
 }
 
+//FIND NEXT TASK READY TO RUN WITH HIGHEST PRIORITY
 struct task *_get_next_task(void)
 {
     struct list_head *pos;
@@ -221,7 +226,7 @@ struct task *_get_next_task(void)
     list_for_each(pos, &task_list)
     {
         p = list_entry(pos, struct task, task_node);
-        //IF RUNNING TASK HAS HIGHEST PRIORITY, CHOOSE IT
+        //IF RUNNING TASK HAS HIGHER PRIORITY, CHOOSE IT
         if((p->state == READY || p->state == RUNNING) && (next_task == NULL || p->period < next_task->period))
             next_task = p;
     }
@@ -297,8 +302,9 @@ int __init my_module_init(void)
     proc_dir = proc_mkdir(PROC_DIRNAME, NULL);
     register_task_file = create_proc_entry(PROC_FILENAME, 0666, proc_dir);
     register_task_file->read_proc = proc_registration_read;
-    register_task_file->write_proc =proc_registration_write;
+    register_task_file->write_proc = proc_registration_write;
 
+    //DISPATCH THREAD WILL HAVE HIGHEST PRIORITY
     dispatch_kthread = kthread_create(context_switch, NULL, UPDATE_THREAD_NAME);
     sparam.sched_priority = MAX_RT_PRIO;
     sched_setscheduler(dispatch_kthread, SCHED_FIFO, &sparam);
