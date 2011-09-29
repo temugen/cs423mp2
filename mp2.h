@@ -45,8 +45,6 @@ static struct proc_dir_entry *register_task_file;
 struct task_struct* update_kthread;
 int stop_thread=0;
 
-struct task *currtask;
-
 LIST_HEAD(task_list);
 static DEFINE_MUTEX(mutex);
 #endif

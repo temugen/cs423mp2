@@ -34,7 +34,7 @@ void _destroy_task_list(void)
 
 void _insert_task(struct task* t)
 {
-    BUG_ON(t==NULL);
+    BUG_ON(t == NULL);
     list_add_tail(&t->task_node, &task_list);
 }
 
@@ -53,17 +53,21 @@ struct task* _lookup_task(unsigned long pid)
     return NULL;
 }
 
-void deregister_task(unsigned long pid)
+int deregister_task(unsigned long pid)
 {
     struct task *t;
     if((t = _lookup_task(pid)) == NULL)
-        return;
+        return -1;
 
+    t->state = DEREGISTERING;
     mutex_lock(&mutex);
     list_del(&t->task_node);
     mutex_unlock(&mutex);
     del_timer_sync(&t->wakeup_timer);
-    kfree(t);
+
+    wake_up_process(update_kthread);
+
+    return 0;
 }
 
 int proc_registration_read(char *page, char **start, off_t off, int count, int* eof, void* data)
@@ -110,10 +114,33 @@ int register_task(unsigned long pid, unsigned long period, unsigned long computa
     newtask->linux_task = find_task_by_pid(pid);
     newtask->period = period;
     newtask->computation = computation;
-    newtask->state = SLEEPING;
+    newtask->state = REGISTERING;
     mutex_lock(&mutex);
     _insert_task(newtask);
     mutex_unlock(&mutex);
+
+    return 0;
+}
+
+int yield_task(unsigned long pid)
+{
+    struct task *t;
+    if((t = _lookup_task(pid)) == NULL)
+        return -1;
+
+    switch(t->state)
+    {
+        case REGISTERING:
+            set_timer(&t->wakeup_timer, t->period);
+            t->state = READY;
+            break;
+        default:
+            t->state = SLEEPING;
+            break;
+    }
+
+    set_task_state(t->linux_task, TASK_UNINTERRUPTIBLE);
+    wake_up_process(update_kthread);
 
     return 0;
 }
@@ -142,13 +169,12 @@ int proc_registration_write(struct file *file, const char *buffer, unsigned long
     char *proc_buffer;
     char reg_type;
     unsigned long pid, period, computation;
-    struct task *t;
 
     proc_buffer = kmalloc(count, GFP_KERNEL);
-    copy_from_user(proc_buffer, buffer, count);
+    if(copy_from_user(proc_buffer, buffer, count) != 0)
+        goto copy_fail;
 
     reg_type = proc_buffer[0];
-
     switch(reg_type)
     {
         case 'R':
@@ -156,7 +182,7 @@ int proc_registration_write(struct file *file, const char *buffer, unsigned long
 
             if(!can_schedule(period, computation))
             {
-                printk(KERN_ALERT "Cannot register task:%lu %lu %lu\n", pid, period, computation);
+                printk(KERN_ALERT "Task %lu is not schedulable\n", pid);
                 break;
             }
 
@@ -164,35 +190,12 @@ int proc_registration_write(struct file *file, const char *buffer, unsigned long
             printk(KERN_ALERT "Register Task:%lu %lu %lu\n", pid, period, computation);
             break;
         case 'Y':
-            mutex_lock(&mutex);
-            currtask = NULL;
-            mutex_unlock(&mutex);
-
             sscanf(proc_buffer, "%c, %lu", &reg_type, &pid);
-            t = _lookup_task(pid);
-
-            if(t->state == SLEEPING) //THIS IS OUR FIRST YIELD
-            {
-                set_timer(&t->wakeup_timer, t->period);
-                t->state = READY;
-            }
-            else
-            {
-                t->state = SLEEPING;
-            }
-
-            set_task_state(t->linux_task, TASK_UNINTERRUPTIBLE);
-            wake_up_process(update_kthread);
-            printk(KERN_ALERT "Yield Task:%lu\n", pid);
+            yield_task(pid);
             break;
         case 'D':
-            mutex_lock(&mutex);
-            currtask = NULL;
-            mutex_unlock(&mutex);
-
             sscanf(proc_buffer, "%c, %lu", &reg_type, &pid);
             deregister_task(pid);
-            wake_up_process(update_kthread);
             printk(KERN_ALERT "Deregister Task:%lu\n", pid);
             break;
         default:
@@ -200,6 +203,7 @@ int proc_registration_write(struct file *file, const char *buffer, unsigned long
             break;
     }
 
+copy_fail:
     kfree(proc_buffer);
     return count;
 }
@@ -227,28 +231,39 @@ int context_switch(void *data)
 {
     struct sched_param sparam;
     struct task *next_task;
+    struct task *currtask = NULL;
 
     while(1)
     {
         mutex_lock(&mutex);
         if (stop_thread==1) break;
-        printk(KERN_ALERT "CONTEXT SWITCH\n");
         next_task = _get_next_task();
+        mutex_unlock(&mutex);
 
         if(next_task == currtask)
-            goto same_task;
+            goto sleep;
 
         if(currtask != NULL) //SWAP OUT OLD TASK
         {
-            printk("swapping out %u\n", currtask->pid);
-            currtask->state = READY;
-            sparam.sched_priority = 0;
-            sched_setscheduler(currtask->linux_task, SCHED_NORMAL, &sparam);
+            switch(currtask->state)
+            {
+                case DEREGISTERING:
+                    kfree(currtask);
+                    currtask = NULL;
+                    break;
+                case SLEEPING:
+                    currtask = NULL;
+                    break;
+                default:
+                    currtask->state = READY;
+                    sparam.sched_priority = 0;
+                    sched_setscheduler(currtask->linux_task, SCHED_NORMAL, &sparam);
+                    break;
+            }
         }
 
         if(next_task != NULL) //SWAP IN NEW TASK
         {
-            printk("swapping in %u\n", next_task->pid);
             next_task->state = RUNNING;
             wake_up_process(next_task->linux_task);
             sparam.sched_priority = MAX_USER_RT_PRIO - 1;
@@ -256,8 +271,7 @@ int context_switch(void *data)
             currtask = next_task;
         }
 
-same_task:
-        mutex_unlock(&mutex);
+sleep:
         //SLEEP OUR THREAD
         set_current_state(TASK_INTERRUPTIBLE);
         schedule();
@@ -272,8 +286,6 @@ same_task:
 //NOTE THE __INIT ANNOTATION AND THE FUNCTION PROTOTYPE
 int __init my_module_init(void)
 {
-    currtask = NULL;
-
     proc_dir = proc_mkdir(PROC_DIRNAME, NULL);
     register_task_file = create_proc_entry(PROC_FILENAME, 0666, proc_dir);
     register_task_file->read_proc = proc_registration_read;
