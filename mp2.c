@@ -65,7 +65,7 @@ int deregister_task(unsigned long pid)
     del_timer_sync(&t->wakeup_timer);
     t->state = DEREGISTERING;
 
-    wake_up_process(update_kthread);
+    wake_up_process(dispatch_kthread);
 
     return 0;
 }
@@ -98,7 +98,7 @@ void up_handler(unsigned long ptr)
     t->state = READY;
 
     //SCHEDULE THE THREAD TO RUN (WAKE UP THE THREAD)
-    wake_up_process(update_kthread);
+    wake_up_process(dispatch_kthread);
 }
 
 int register_task(unsigned long pid, unsigned long period, unsigned long computation)
@@ -140,7 +140,7 @@ int yield_task(unsigned long pid)
     }
 
     set_task_state(t->linux_task, TASK_UNINTERRUPTIBLE);
-    wake_up_process(update_kthread);
+    wake_up_process(dispatch_kthread);
 
     return 0;
 }
@@ -295,9 +295,9 @@ int __init my_module_init(void)
     register_task_file->read_proc = proc_registration_read;
     register_task_file->write_proc =proc_registration_write;
 
-    update_kthread = kthread_create(context_switch, NULL, UPDATE_THREAD_NAME);
+    dispatch_kthread = kthread_create(context_switch, NULL, UPDATE_THREAD_NAME);
     sparam.sched_priority = MAX_RT_PRIO;
-    sched_setscheduler(update_kthread, SCHED_FIFO, &sparam);
+    sched_setscheduler(dispatch_kthread, SCHED_FIFO, &sparam);
 
     //THE EQUIVALENT TO PRINTF IN KERNEL SPACE
     printk(KERN_ALERT "MODULE LOADED\n");
@@ -312,8 +312,8 @@ void __exit my_module_exit(void)
     remove_proc_entry(PROC_DIRNAME, NULL);
 
     stop_thread = 1;
-    wake_up_process(update_kthread);
-    kthread_stop(update_kthread);
+    wake_up_process(dispatch_kthread);
+    kthread_stop(dispatch_kthread);
 
     _destroy_task_list();
     printk(KERN_ALERT "MODULE UNLOADED\n");
