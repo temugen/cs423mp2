@@ -12,9 +12,9 @@ unsigned long long factorial(int number)
     unsigned long long retval=1;
     unsigned long long i;
 
-    for (i=1; i <= number; i++)
+    for(i = 1; i <= number; i++)
     {
-        retval=retval *i;
+        retval = retval * i;
     }
 
     return retval;
@@ -31,7 +31,7 @@ int main(int argc, char* argv[])
     struct timeval last_tv, current_tv;
 
     mypid= syscall(__NR_gettid);
-    sprintf(cmd, "echo 'R, %lu, 2000, 20'>" PROC_FILENAME, mypid);
+    sprintf(cmd, "echo 'R, %lu, 500, 10'>" PROC_FILENAME, mypid);
     system(cmd);
 
     file = fopen(PROC_FILENAME, "r");
@@ -54,18 +54,19 @@ int main(int argc, char* argv[])
     system(cmd);
     gettimeofday(&current_tv, NULL);
 
-    for(j=0; j<10; j++)
-    {
-        printf("% 4ld sec % 5ld us | fact(%u): %llu\n",
-                current_tv.tv_sec - last_tv.tv_sec,
-                current_tv.tv_usec - last_tv.tv_usec,
-                j, factorial(j));
+    for(k = 0; k < 2; k++)
+        for(j = 0; j < 10; j++)
+        {
+            printf("% 4ld sec % 5ld us | fact(%u): %llu\n",
+                    current_tv.tv_sec - last_tv.tv_sec,
+                    current_tv.tv_usec - last_tv.tv_usec,
+                    j, factorial(j));
 
-        sprintf(cmd, "echo 'Y, %lu'>" PROC_FILENAME, mypid);
-        gettimeofday(&last_tv, NULL);
-        system(cmd);
-        gettimeofday(&current_tv, NULL);
-    }
+            sprintf(cmd, "echo 'Y, %lu'>" PROC_FILENAME, mypid);
+            gettimeofday(&last_tv, NULL);
+            system(cmd);
+            gettimeofday(&current_tv, NULL);
+        }
 
     sprintf(cmd, "echo 'D, %lu'>" PROC_FILENAME, mypid);
     system(cmd);
