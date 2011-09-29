@@ -286,12 +286,16 @@ sleep:
 //NOTE THE __INIT ANNOTATION AND THE FUNCTION PROTOTYPE
 int __init my_module_init(void)
 {
+    struct sched_param sparam;
+
     proc_dir = proc_mkdir(PROC_DIRNAME, NULL);
     register_task_file = create_proc_entry(PROC_FILENAME, 0666, proc_dir);
     register_task_file->read_proc = proc_registration_read;
     register_task_file->write_proc =proc_registration_write;
 
     update_kthread = kthread_create(context_switch, NULL, UPDATE_THREAD_NAME);
+    sparam.sched_priority = MAX_RT_PRIO;
+    sched_setscheduler(update_kthread, SCHED_FIFO, &sparam);
 
     //THE EQUIVALENT TO PRINTF IN KERNEL SPACE
     printk(KERN_ALERT "MODULE LOADED\n");
