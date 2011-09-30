@@ -1,37 +1,10 @@
 #!/bin/bash
+#
+#launches one more task than is schedulable
+#
 
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
-./userapp &
+for i in {1..35}
+do
+    ./userapp &
+done
+
