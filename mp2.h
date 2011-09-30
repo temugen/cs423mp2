@@ -29,7 +29,7 @@
 
 struct task
 {
-  unsigned int pid;
+  unsigned long pid;
   struct list_head task_node;
   struct task_struct *linux_task;
   struct timer_list wakeup_timer;

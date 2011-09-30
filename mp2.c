@@ -87,7 +87,7 @@ int proc_registration_read(char *page, char **start, off_t off, int count, int* 
     list_for_each(pos, &task_list)
     {
         p = list_entry(pos, struct task, task_node);
-        i += sprintf(page+off+i, "%u: %lu %lu\n", p->pid, p->period, p->computation);
+        i += sprintf(page+off+i, "%lu: %lu %lu\n", p->pid, p->period, p->computation);
     }
     *eof = 1;
     return i;
