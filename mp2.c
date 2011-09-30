@@ -148,7 +148,9 @@ int yield_task(unsigned long pid)
             t->state = READY;
             break;
         default:
+            mutex_lock(&curr_mutex);
             t->state = SLEEPING;
+            mutex_unlock(&curr_mutex);
             break;
     }
 
@@ -248,28 +250,19 @@ int context_switch(void *data)
 
     while(1)
     {
+        if(stop_thread == 1)
+            break;
+
         mutex_lock(&curr_mutex);
         mutex_lock(&list_mutex);
-        if (stop_thread==1) break;
         next_task = _get_next_task();
         mutex_unlock(&list_mutex);
 
-        if(next_task == currtask)
+        if(currtask != NULL && currtask->state == RUNNING) //SWAP OUT OLD TASK
         {
-            mutex_unlock(&curr_mutex);
-            goto sleep;
+            currtask->state = READY;
+            sched_setscheduler(currtask->linux_task, SCHED_NORMAL, &sparam_nice);
         }
-
-        if(currtask != NULL) //SWAP OUT OLD TASK
-        {
-            if(currtask->state == RUNNING)
-            {
-                    currtask->state = READY;
-                    sched_setscheduler(currtask->linux_task, SCHED_NORMAL, &sparam_nice);
-            }
-            currtask = NULL;
-        }
-        mutex_unlock(&curr_mutex);
 
         if(next_task != NULL) //SWAP IN NEW TASK
         {
@@ -278,16 +271,16 @@ int context_switch(void *data)
             sched_setscheduler(next_task->linux_task, SCHED_FIFO, &sparam_rt);
             currtask = next_task;
         }
+        else
+            currtask = NULL;
+        mutex_unlock(&curr_mutex);
 
-sleep:
         //SLEEP OUR THREAD AND SCHEDULE CHANGES
         set_current_state(TASK_INTERRUPTIBLE);
         schedule();
         set_current_state(TASK_RUNNING);
     }
 
-    mutex_unlock(&list_mutex);
-    mutex_unlock(&curr_mutex);
     return 0;
 }
 
