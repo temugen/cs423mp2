@@ -116,7 +116,7 @@ int register_task(unsigned long pid, unsigned long period, unsigned long computa
 
     if (_lookup_task(pid) != NULL) return -1;
 
-    newtask = kmalloc(sizeof(struct task),GFP_KERNEL);
+    newtask = kmalloc(sizeof(struct task), GFP_KERNEL);
     newtask->pid = pid;
     timer_init(&newtask->wakeup_timer, up_handler);
     newtask->wakeup_timer.data = (unsigned long)newtask;
