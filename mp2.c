@@ -248,15 +248,18 @@ int context_switch(void *data)
 
     while(1)
     {
+        mutex_lock(&curr_mutex);
         mutex_lock(&list_mutex);
         if (stop_thread==1) break;
         next_task = _get_next_task();
         mutex_unlock(&list_mutex);
 
         if(next_task == currtask)
+        {
+            mutex_unlock(&curr_mutex);
             goto sleep;
+        }
 
-        mutex_lock(&curr_mutex);
         if(currtask != NULL) //SWAP OUT OLD TASK
         {
             if(currtask->state == RUNNING)
@@ -284,6 +287,7 @@ sleep:
     }
 
     mutex_unlock(&list_mutex);
+    mutex_unlock(&curr_mutex);
     return 0;
 }
 
