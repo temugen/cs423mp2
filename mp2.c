@@ -23,9 +23,6 @@ void _destroy_task_list(void)
 {
     struct list_head *pos, *tmp;
     struct task *p;
-    struct sched_param sparam_nice;
-
-    sparam_nice.sched_priority = 0;
 
     list_for_each_safe(pos, tmp, &task_list)
     {
@@ -238,12 +235,8 @@ struct task *_get_next_task(void)
 //WE DO ALL THE UPDATE WORK HERE
 int context_switch(void *data)
 {
-    struct sched_param sparam_nice, sparam_rt;
     struct task *next_task;
     struct task *currtask = NULL;
-
-    sparam_nice.sched_priority = 0;
-    sparam_rt.sched_priority = MAX_USER_RT_PRIO - 1;
 
     while(1)
     {
@@ -307,6 +300,9 @@ int __init my_module_init(void)
     dispatch_kthread = kthread_create(context_switch, NULL, UPDATE_THREAD_NAME);
     sparam.sched_priority = MAX_RT_PRIO;
     sched_setscheduler(dispatch_kthread, SCHED_FIFO, &sparam);
+
+    sparam_nice.sched_priority = 0;
+    sparam_rt.sched_priority = MAX_USER_RT_PRIO - 1;
 
     //THE EQUIVALENT TO PRINTF IN KERNEL SPACE
     printk(KERN_ALERT "MODULE LOADED\n");

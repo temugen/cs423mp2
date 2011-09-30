@@ -44,6 +44,7 @@ static struct proc_dir_entry *register_task_file;
 
 struct task_struct* dispatch_kthread;
 int stop_thread=0;
+struct sched_param sparam_nice, sparam_rt;
 
 LIST_HEAD(task_list);
 static DEFINE_MUTEX(mutex);
