@@ -144,8 +144,8 @@ int yield_task(unsigned long pid)
     switch(t->state)
     {
         case REGISTERING:
-            set_timer(&t->wakeup_timer, t->period);
             t->state = READY;
+            set_timer(&t->wakeup_timer, t->period);
             break;
         default:
             mutex_lock(&curr_mutex);
