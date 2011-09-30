@@ -25,7 +25,6 @@
 #define SLEEPING 2
 #define RUNNING 3
 #define REGISTERING 4
-#define DEREGISTERING 5
 
 struct task
 {
@@ -43,9 +42,11 @@ static struct proc_dir_entry *proc_dir;
 static struct proc_dir_entry *register_task_file;
 
 struct task_struct* dispatch_kthread;
-int stop_thread=0;
+int stop_thread = 0;
 struct sched_param sparam_nice, sparam_rt;
+struct task *currtask = NULL;
 
 LIST_HEAD(task_list);
-static DEFINE_MUTEX(mutex);
+static DEFINE_MUTEX(list_mutex);
+static DEFINE_MUTEX(curr_mutex);
 #endif

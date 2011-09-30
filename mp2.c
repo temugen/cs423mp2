@@ -63,11 +63,19 @@ int deregister_task(unsigned long pid)
         return -1;
 
     del_timer_sync(&t->wakeup_timer);
-    mutex_lock(&mutex);
-    list_del(&t->task_node);
-    t->state = DEREGISTERING;
-    mutex_unlock(&mutex);
 
+    mutex_lock(&list_mutex);
+    list_del(&t->task_node);
+    mutex_unlock(&list_mutex);
+
+    sched_setscheduler(t->linux_task, SCHED_NORMAL, &sparam_nice);
+
+    mutex_lock(&curr_mutex);
+    if(t == currtask)
+        currtask = NULL;
+    mutex_unlock(&curr_mutex);
+
+    kfree(t);
     wake_up_process(dispatch_kthread);
 
     return 0;
@@ -80,13 +88,13 @@ int proc_registration_read(char *page, char **start, off_t off, int count, int* 
     struct task *p;
 
     i = 0;
-
     list_for_each(pos, &task_list)
     {
         p = list_entry(pos, struct task, task_node);
         i += sprintf(page+off+i, "%lu: %lu %lu\n", p->pid, p->period, p->computation);
     }
     *eof = 1;
+
     return i;
 }
 
@@ -118,9 +126,10 @@ int register_task(unsigned long pid, unsigned long period, unsigned long computa
     newtask->period = period;
     newtask->computation = computation;
     newtask->state = REGISTERING;
-    mutex_lock(&mutex);
+
+    mutex_lock(&list_mutex);
     _insert_task(newtask);
-    mutex_unlock(&mutex);
+    mutex_unlock(&list_mutex);
 
     return 0;
 }
@@ -236,35 +245,28 @@ struct task *_get_next_task(void)
 int context_switch(void *data)
 {
     struct task *next_task;
-    struct task *currtask = NULL;
 
     while(1)
     {
-        mutex_lock(&mutex);
+        mutex_lock(&list_mutex);
         if (stop_thread==1) break;
         next_task = _get_next_task();
-        mutex_unlock(&mutex);
+        mutex_unlock(&list_mutex);
 
         if(next_task == currtask)
             goto sleep;
 
+        mutex_lock(&curr_mutex);
         if(currtask != NULL) //SWAP OUT OLD TASK
         {
-            switch(currtask->state)
+            if(currtask->state == RUNNING)
             {
-                case DEREGISTERING:
-                    sched_setscheduler(currtask->linux_task, SCHED_NORMAL, &sparam_nice);
-                    kfree(currtask);
-                    break;
-                case SLEEPING:
-                    break;
-                default:
                     currtask->state = READY;
                     sched_setscheduler(currtask->linux_task, SCHED_NORMAL, &sparam_nice);
-                    break;
             }
             currtask = NULL;
         }
+        mutex_unlock(&curr_mutex);
 
         if(next_task != NULL) //SWAP IN NEW TASK
         {
@@ -281,7 +283,7 @@ sleep:
         set_current_state(TASK_RUNNING);
     }
 
-    mutex_unlock(&mutex);
+    mutex_unlock(&list_mutex);
     return 0;
 }
 
@@ -306,6 +308,7 @@ int __init my_module_init(void)
 
     //THE EQUIVALENT TO PRINTF IN KERNEL SPACE
     printk(KERN_ALERT "MODULE LOADED\n");
+
     return 0;
 }
 
