@@ -68,13 +68,12 @@ int deregister_task(unsigned long pid)
     list_del(&t->task_node);
     mutex_unlock(&list_mutex);
 
-    sched_setscheduler(t->linux_task, SCHED_NORMAL, &sparam_nice);
-
     mutex_lock(&curr_mutex);
     if(t == currtask)
         currtask = NULL;
     mutex_unlock(&curr_mutex);
 
+    sched_setscheduler(t->linux_task, SCHED_NORMAL, &sparam_nice);
     kfree(t);
     wake_up_process(dispatch_kthread);
 
@@ -106,7 +105,6 @@ void up_handler(unsigned long ptr)
     BUG_ON(t == NULL);
     set_timer(&t->wakeup_timer, t->period);
     t->state = READY;
-
     //SCHEDULE THE THREAD TO RUN (WAKE UP THE THREAD)
     wake_up_process(dispatch_kthread);
 }
