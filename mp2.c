@@ -141,17 +141,16 @@ int yield_task(unsigned long pid)
     if((t = _lookup_task(pid)) == NULL)
         return -1;
 
-    switch(t->state)
+    if(t->state == REGISTERING)
     {
-        case REGISTERING:
-            t->state = READY;
-            set_timer(&t->wakeup_timer, t->period);
-            break;
-        default:
-            mutex_lock(&curr_mutex);
-            t->state = SLEEPING;
-            mutex_unlock(&curr_mutex);
-            break;
+        t->state = READY;
+        set_timer(&t->wakeup_timer, t->period);
+    }
+    else if(t->state != READY)
+    {
+        mutex_lock(&curr_mutex);
+        t->state = SLEEPING;
+        mutex_unlock(&curr_mutex);
     }
 
     set_task_state(t->linux_task, TASK_UNINTERRUPTIBLE);
