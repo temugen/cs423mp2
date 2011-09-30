@@ -30,8 +30,8 @@ void _destroy_task_list(void)
     list_for_each_safe(pos, tmp, &task_list)
     {
         p = list_entry(pos, struct task, task_node);
-        list_del(pos);
         del_timer_sync(&p->wakeup_timer);
+        list_del(pos);
         sched_setscheduler(p->linux_task, SCHED_NORMAL, &sparam_nice);
         kfree(p);
     }
@@ -65,11 +65,11 @@ int deregister_task(unsigned long pid)
     if((t = _lookup_task(pid)) == NULL)
         return -1;
 
+    del_timer_sync(&t->wakeup_timer);
     mutex_lock(&mutex);
     list_del(&t->task_node);
-    mutex_unlock(&mutex);
-    del_timer_sync(&t->wakeup_timer);
     t->state = DEREGISTERING;
+    mutex_unlock(&mutex);
 
     wake_up_process(dispatch_kthread);
 
@@ -262,16 +262,15 @@ int context_switch(void *data)
                 case DEREGISTERING:
                     sched_setscheduler(currtask->linux_task, SCHED_NORMAL, &sparam_nice);
                     kfree(currtask);
-                    currtask = NULL;
                     break;
                 case SLEEPING:
-                    currtask = NULL;
                     break;
                 default:
                     currtask->state = READY;
                     sched_setscheduler(currtask->linux_task, SCHED_NORMAL, &sparam_nice);
                     break;
             }
+            currtask = NULL;
         }
 
         if(next_task != NULL) //SWAP IN NEW TASK
